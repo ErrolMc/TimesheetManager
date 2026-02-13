@@ -73,6 +73,11 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
+    const employeeName = (formData.get("employeeName") as string | null)?.trim();
+
+    if (!employeeName) {
+      return NextResponse.json({ error: "Employee name is required before uploading." }, { status: 400 });
+    }
 
     if (!file) {
       return NextResponse.json({ error: "No file provided" }, { status: 400 });
@@ -113,9 +118,9 @@ export async function POST(request: NextRequest) {
     let result: unknown;
 
     if (provider === "openai") {
-      result = await callOpenAI(buffer, file.type, file.name, apiKey);
+      result = await callOpenAI(buffer, file.type, file.name, apiKey, employeeName);
     } else if (provider === "anthropic") {
-      result = await callAnthropic(buffer, file.type, file.name, apiKey);
+      result = await callAnthropic(buffer, file.type, file.name, apiKey, employeeName);
     } else {
       return NextResponse.json({ error: `Unknown AI provider: ${provider}` }, { status: 500 });
     }
@@ -131,9 +136,11 @@ async function callOpenAI(
   buffer: Buffer,
   contentType: string,
   filename: string,
-  apiKey: string
+  apiKey: string,
+  employeeName: string
 ): Promise<unknown> {
   const isImage = contentType.startsWith("image/");
+  const promptWithName = `${AI_PROMPT}\n\nThe submitting employee's name is: "${employeeName}". Use this as context to identify which data belongs to them.`;
 
   const messages: Array<Record<string, unknown>> = [];
   if (isImage) {
@@ -141,7 +148,7 @@ async function callOpenAI(
     messages.push({
       role: "user",
       content: [
-        { type: "text", text: AI_PROMPT },
+        { type: "text", text: promptWithName },
         { type: "image_url", image_url: { url: `data:${contentType};base64,${base64}` } },
       ],
     });
@@ -149,7 +156,7 @@ async function callOpenAI(
     const text = buffer.toString("utf-8");
     messages.push({
       role: "user",
-      content: `${AI_PROMPT}\n\nFile: ${filename}\nContent:\n${text}`,
+      content: `${promptWithName}\n\nFile: ${filename}\nContent:\n${text}`,
     });
   }
 
@@ -183,9 +190,11 @@ async function callAnthropic(
   buffer: Buffer,
   contentType: string,
   filename: string,
-  apiKey: string
+  apiKey: string,
+  employeeName: string
 ): Promise<unknown> {
   const isImage = contentType.startsWith("image/");
+  const promptWithName = `${AI_PROMPT}\n\nThe submitting employee's name is: "${employeeName}". Use this as context to identify which data belongs to them.`;
   const content: Array<Record<string, unknown>> = [];
 
   if (isImage) {
@@ -198,8 +207,8 @@ async function callAnthropic(
   content.push({
     type: "text",
     text: isImage
-      ? AI_PROMPT
-      : `${AI_PROMPT}\n\nFile: ${filename}\nContent:\n${buffer.toString("utf-8")}`,
+      ? promptWithName
+      : `${promptWithName}\n\nFile: ${filename}\nContent:\n${buffer.toString("utf-8")}`,
   });
 
   const baseUrl = process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com";

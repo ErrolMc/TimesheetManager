@@ -167,7 +167,7 @@ export default function Home() {
           </button>
         </div>
 
-        {showUpload && <FileUpload onExtracted={handleExtracted} />}
+        {showUpload && <FileUpload onExtracted={handleExtracted} employeeName={employeeName} />}
 
         {/* Confidence legend */}
         {Object.keys(confidences).length > 0 && (

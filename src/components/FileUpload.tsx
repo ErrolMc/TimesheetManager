@@ -4,10 +4,11 @@ import { useCallback, useState } from "react";
 
 interface FileUploadProps {
   onExtracted: (data: unknown) => void;
+  employeeName: string;
   disabled?: boolean;
 }
 
-export default function FileUpload({ onExtracted, disabled }: FileUploadProps) {
+export default function FileUpload({ onExtracted, employeeName, disabled }: FileUploadProps) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -15,6 +16,11 @@ export default function FileUpload({ onExtracted, disabled }: FileUploadProps) {
 
   const processFile = useCallback(
     async (file: File) => {
+      if (!employeeName.trim()) {
+        setError("Please enter the employee name before uploading.");
+        return;
+      }
+
       setError(null);
       setFileName(file.name);
       setUploading(true);
@@ -22,6 +28,7 @@ export default function FileUpload({ onExtracted, disabled }: FileUploadProps) {
       try {
         const formData = new FormData();
         formData.append("file", file);
+        formData.append("employeeName", employeeName.trim());
 
         const res = await fetch("/api/extract", {
           method: "POST",
@@ -41,7 +48,7 @@ export default function FileUpload({ onExtracted, disabled }: FileUploadProps) {
         setUploading(false);
       }
     },
-    [onExtracted]
+    [onExtracted, employeeName]
   );
 
   function handleDrop(e: React.DragEvent) {
