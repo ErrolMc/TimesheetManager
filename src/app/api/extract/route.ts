@@ -18,9 +18,12 @@ WORK PERIOD:
 - Set weekStartDate to the first day and weekEndDate to the last day found.
 
 DATE INTERPRETATION:
-- Dates written as DD/MM (e.g., 06/02 = February 6th) are common outside the US. Use context clues (sequential dates, day-of-week labels) to determine the correct format.
-- If the source labels a day as "Friday 06/02", trust that label — the employee knows what day they worked. Use the day-of-week label as the primary reference and resolve the date to match.
-- Do NOT warn about day-of-week mismatches with calendar dates. Employees may use approximate labels. Extract the data as-is.
+- The employee's day-of-week labels (e.g., "Friday", "Monday") are the PRIMARY source of truth. The employee knows what day they worked.
+- Numeric dates (e.g., 06/02) are SECONDARY. If a numeric date conflicts with the employee's day label, adjust the numeric date to match the day label, not the other way around.
+- For example: if the employee writes "Friday 06/02" but 2025-02-06 is a Thursday, the employee means Friday 2025-02-07. Use the day label to find the correct date.
+- DD/MM format (e.g., 06/02 = 6th of February) is common outside the US. Use sequential context to determine format.
+- To resolve dates: identify the approximate date range from the numeric dates, then assign each entry the nearest calendar date that matches the employee's stated day of week.
+- NEVER warn about date/day-of-week mismatches. Just resolve them silently using the day label as primary.
 
 BREAKS:
 - If break times are explicitly stated, use them.
