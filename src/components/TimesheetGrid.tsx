@@ -8,6 +8,8 @@ const DAY_LABELS: Record<string, string> = {
   WED: "Wednesday",
   THU: "Thursday",
   FRI: "Friday",
+  SAT: "Saturday",
+  SUN: "Sunday",
 };
 
 interface TimesheetGridProps {

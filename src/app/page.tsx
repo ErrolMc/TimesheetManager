@@ -40,32 +40,27 @@ export default function Home() {
         setEmail(result.employee.email);
       }
 
-      // Map AI days onto the grid
-      if (result.days && result.days.length === 5) {
-        const newDays = days.map((day, i) => {
-          const aiDay = result.days[i];
-          if (!aiDay) return day;
-          return {
-            ...day,
-            date: aiDay.date || day.date,
-            dayOfWeek: aiDay.dayOfWeek || day.dayOfWeek,
-            startTime: aiDay.work.startTime || "",
-            endTime: aiDay.work.endTime || "",
-            totalHours:
-              aiDay.work.totalHours != null
-                ? String(aiDay.work.totalHours)
-                : "",
-            breakMinutes:
-              aiDay.work.breakMinutes != null
-                ? String(aiDay.work.breakMinutes)
-                : "",
-            kilometers:
-              aiDay.work.kilometers != null
-                ? String(aiDay.work.kilometers)
-                : "",
-            notes: aiDay.notes || "",
-          };
-        });
+      // Map AI days directly — support any number of days returned
+      if (result.days && result.days.length > 0) {
+        const newDays = result.days.map((aiDay) => ({
+          date: aiDay.date,
+          dayOfWeek: aiDay.dayOfWeek,
+          startTime: aiDay.work.startTime || "",
+          endTime: aiDay.work.endTime || "",
+          totalHours:
+            aiDay.work.totalHours != null
+              ? String(aiDay.work.totalHours)
+              : "",
+          breakMinutes:
+            aiDay.work.breakMinutes != null
+              ? String(aiDay.work.breakMinutes)
+              : "",
+          kilometers:
+            aiDay.work.kilometers != null
+              ? String(aiDay.work.kilometers)
+              : "",
+          notes: aiDay.notes || "",
+        }));
         setDays(newDays);
 
         // Build confidence map
@@ -205,7 +200,7 @@ export default function Home() {
       {/* Timesheet grid */}
       <div>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
-          Hours — Week of {weekStart}
+          Hours — Period Starting {weekStart}
         </h2>
         <TimesheetGrid
           days={days}
