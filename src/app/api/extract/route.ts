@@ -78,12 +78,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const provider = process.env.AI_PROVIDER || "openai";
-    const apiKey = process.env.AI_API_KEY;
+    const provider = process.env.AI_PROVIDER || (process.env.ANTHROPIC_API_KEY ? "anthropic" : "openai");
+    const apiKey =
+      process.env.AI_API_KEY ||
+      (provider === "anthropic" ? process.env.ANTHROPIC_API_KEY : undefined) ||
+      (provider === "openai" ? process.env.OPENAI_API_KEY : undefined);
+
+    console.log("[extract] provider:", provider);
+    console.log("[extract] AI_API_KEY set:", !!process.env.AI_API_KEY);
+    console.log("[extract] ANTHROPIC_API_KEY set:", !!process.env.ANTHROPIC_API_KEY);
+    console.log("[extract] OPENAI_API_KEY set:", !!process.env.OPENAI_API_KEY);
+    console.log("[extract] ANTHROPIC_BASE_URL:", process.env.ANTHROPIC_BASE_URL || "(not set)");
+    console.log("[extract] resolved apiKey present:", !!apiKey);
 
     if (!apiKey || apiKey === "your_key_here") {
       return NextResponse.json(
-        { error: "AI API key not configured. Set AI_API_KEY in .env.local" },
+        { error: "AI API key not configured. Set AI_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY as an environment variable." },
         { status: 500 }
       );
     }
@@ -181,7 +191,11 @@ async function callAnthropic(
       : `${AI_PROMPT}\n\nFile: ${filename}\nContent:\n${buffer.toString("utf-8")}`,
   });
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
+  const baseUrl = process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com";
+  const url = `${baseUrl}/v1/messages`;
+  console.log("[extract] Anthropic URL:", url);
+
+  const response = await fetch(url, {
     method: "POST",
     headers: {
       "x-api-key": apiKey,
@@ -196,7 +210,9 @@ async function callAnthropic(
   });
 
   if (!response.ok) {
-    throw new Error(`Anthropic error: ${await response.text()}`);
+    const errText = await response.text();
+    console.error("[extract] Anthropic error response:", response.status, errText);
+    throw new Error(`Anthropic error: ${errText}`);
   }
 
   const data = await response.json();
