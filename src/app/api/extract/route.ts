@@ -3,38 +3,45 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 60; // seconds (Vercel Pro allows up to 300)
 export const runtime = "nodejs";
 
-const AI_PROMPT = `You are a timesheet data extraction assistant. Your job is to extract working hours from whatever data an employee provides — handwritten notes, photos, spreadsheets, text files, or any other format.
+const AI_PROMPT = `You are a timesheet data extraction assistant. Extract working hours from whatever an employee uploads — handwritten notes, photos, spreadsheets, text files, or any other format. Be pragmatic, not analytical. Your goal is to produce a clean timesheet, not to critique the source data.
 
-CRITICAL CONTEXT — Employee Identity:
-- The submitting employee's name is provided separately as verified context. That person IS the employee. Period.
-- ALL hours in the uploaded data belong to that employee unless clearly impossible.
-- Any OTHER names appearing in the data (coworkers, supervisors, customers, clients, managers) are contextual notes from the employee's record-keeping process. They do NOT represent separate workers. They may indicate who the employee worked with, who they reported to, or whose job/project they worked on.
-- NEVER attribute hours away from the submitting employee because another name appears next to a time entry. The employee is recording who they worked WITH or FOR, not who else worked.
-- Place any non-employee names under "validation" as supervisor, client, or custom metadata.
+EMPLOYEE IDENTITY (non-negotiable):
+- The employee's name is provided as confirmed context. ALL hours belong to them.
+- Other names in the data are references — coworkers, supervisors, customers, clients. The employee is noting who they worked WITH or FOR.
+- NEVER exclude hours because another name appears. NEVER warn about employee identity.
+- Place other names under "validation" (supervisor, client, custom) and/or in day "notes".
 
-CRITICAL CONTEXT — Work Week Period:
-- Different companies use different pay week start days. A work week does NOT always run Monday to Friday.
-- Determine the actual work period from the data provided. If the first day listed is a Friday, that Friday is the START of the pay period, not the end.
-- Examine the dates/days in the data and infer the 5-day work period accordingly (e.g., Fri–Thu, Mon–Fri, Wed–Tue, etc.).
-- Set "weekStartDate" and "weekEndDate" to reflect the actual period found in the data.
-- Always return exactly 5 day entries covering the work period, ordered chronologically.
+WORK PERIOD:
+- Pay weeks can start on ANY day (Fri–Thu, Mon–Fri, Wed–Tue, etc.). This is normal — do not warn about it.
+- The first day listed in the data is the start of the pay period.
+- Return one day entry per day the employee worked (could be 1–7 days). Order chronologically.
+- Set weekStartDate to the first day and weekEndDate to the last day found.
 
-CRITICAL CONTEXT — Breaks:
-- If break times are explicitly provided in the data, use those values.
-- If break times are NOT mentioned at all for a worked day, default to 30 minutes (breakMinutes: 30). Employees are assumed to take at least a 30-minute break per worked day.
-- Only set breakMinutes to null/0 if the data explicitly states no break was taken.
+DATE INTERPRETATION:
+- Dates written as DD/MM (e.g., 06/02 = February 6th) are common outside the US. Use context clues (sequential dates, day-of-week labels) to determine the correct format.
+- If the source labels a day as "Friday 06/02", trust that label — the employee knows what day they worked. Use the day-of-week label as the primary reference and resolve the date to match.
+- Do NOT warn about day-of-week mismatches with calendar dates. Employees may use approximate labels. Extract the data as-is.
 
-CRITICAL CONTEXT — Hours Extraction:
-- Extract totalHours, startTime, and endTime where available.
-- If only total hours are given (no start/end times), record totalHours and leave startTime/endTime null.
-- If only start/end times are given, calculate totalHours from them minus breakMinutes.
-- Kilometers (km travelled) should be extracted if present, otherwise null.
+BREAKS:
+- If break times are explicitly stated, use them.
+- If breaks are NOT mentioned for a worked day, default to 30 minutes (breakMinutes: 30).
+- Only set breakMinutes to 0 if the data explicitly says no break was taken.
 
-CRITICAL CONTEXT — Notes and Extra Details:
-- Any detail beyond hours, breaks, and km (e.g., job descriptions, client names, locations, tasks performed, coworker names) should be captured in the "notes" field for that day.
-- These notes help the employer validate and cross-reference the timesheet.
+HOURS:
+- If total hours are given, use them directly as totalHours. These are the employee's stated hours — do not second-guess them or warn that breaks may not have been deducted. The employer will review.
+- If only start/end times are given, calculate totalHours = (end - start) - breakMinutes/60.
+- If only total hours are given with no start/end, set startTime and endTime to null.
+- Extract kilometers if present, otherwise null.
 
-Return ONLY valid JSON matching this exact schema — no markdown, no explanation, no commentary:
+NOTES:
+- Capture extra details (job sites, client names, tasks, locations, coworker names) in the day's "notes" field.
+- These help the employer validate the timesheet.
+
+WARNINGS:
+- The warnings array should almost always be empty. Only warn if data is truly unreadable or critically incomplete (e.g., no hours at all for any day, file is corrupt/blank).
+- Do NOT warn about: employee identity, non-standard week periods, date formats, day-of-week labels, other people's names, break assumptions, or how totals were calculated.
+
+Return ONLY valid JSON (no markdown, no explanation):
 {
   "employee": { "fullName": "string", "employeeId": "string|null", "email": "string|null" },
   "period": { "weekStartDate": "YYYY-MM-DD", "weekEndDate": "YYYY-MM-DD" },
@@ -67,16 +74,14 @@ Return ONLY valid JSON matching this exact schema — no markdown, no explanatio
 }
 
 Rules:
-- Every submission is for ONE employee — ALL hours belong to them
-- Return exactly 5 day entries for the work period found in the data
-- Dates in YYYY-MM-DD format
-- Times in HH:MM 24-hour format
-- Confidence values between 0 and 1
-- If a day has no data, set all work fields to null with confidence 0 (but still include breakMinutes: 30 if it falls within the work period)
-- Names of other people go under "validation" or in day "notes" as context — never use them to exclude hours from the submitting employee
-- The "custom" object under "validation" captures any other non-employee metadata as key-value pairs
-- Only produce warnings for genuinely ambiguous or missing data — do NOT warn about the employee's identity (it is confirmed) or about non-standard week periods (these are normal)
-- Return JSON ONLY, no wrapping markdown`;
+- ALL hours belong to the confirmed employee
+- One entry per worked day, ordered chronologically
+- Dates: YYYY-MM-DD, Times: HH:MM 24h, Confidence: 0–1
+- Default breakMinutes: 30 when not stated
+- Use totalHours as the employee reported them
+- Other names → validation/notes, never used to exclude hours
+- Warnings only for truly unreadable/missing data
+- JSON ONLY`;
 
 function extractJSON(raw: string): unknown {
   // Strip markdown code fences if the AI wrapped the response

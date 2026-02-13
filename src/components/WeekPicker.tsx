@@ -7,18 +7,13 @@ interface WeekPickerProps {
 
 export default function WeekPicker({ value, onChange }: WeekPickerProps) {
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const d = new Date(e.target.value + "T00:00:00");
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    d.setDate(diff);
-    const monday = d.toISOString().split("T")[0];
-    onChange(monday);
+    onChange(e.target.value);
   }
 
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">
-        Week Starting
+        Period Starting
       </label>
       <input
         type="date"
