@@ -1,6 +1,6 @@
 import { DayOfWeek, DayEntry } from "./types";
 
-const DAY_NAMES: DayOfWeek[] = ["MON", "TUE", "WED", "THU", "FRI"];
+const ALL_DAY_NAMES: DayOfWeek[] = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
 
 export function getMonday(date: Date): Date {
   const d = new Date(date);
@@ -15,14 +15,18 @@ export function formatDate(date: Date): string {
   return date.toISOString().split("T")[0];
 }
 
+export function getDayName(date: Date): DayOfWeek {
+  return ALL_DAY_NAMES[date.getDay()];
+}
+
 export function generateWeekDays(weekStartDate: string): DayEntry[] {
-  const monday = new Date(weekStartDate + "T00:00:00");
-  return DAY_NAMES.map((dayOfWeek, i) => {
-    const d = new Date(monday);
+  const start = new Date(weekStartDate + "T00:00:00");
+  return Array.from({ length: 5 }, (_, i) => {
+    const d = new Date(start);
     d.setDate(d.getDate() + i);
     return {
       date: formatDate(d),
-      dayOfWeek,
+      dayOfWeek: getDayName(d),
       startTime: "",
       endTime: "",
       totalHours: "",
