@@ -39,6 +39,16 @@ Rules:
 - If a day has no data, set all work fields to null with confidence 0
 - Return JSON ONLY, no wrapping markdown`;
 
+function extractJSON(raw: string): unknown {
+  // Strip markdown code fences if the AI wrapped the response
+  let cleaned = raw.trim();
+  const fenceMatch = cleaned.match(/^```(?:json)?\s*\n?([\s\S]*?)\n?\s*```$/);
+  if (fenceMatch) {
+    cleaned = fenceMatch[1].trim();
+  }
+  return JSON.parse(cleaned);
+}
+
 const ALLOWED_TYPES = [
   "image/jpeg",
   "image/png",
@@ -141,7 +151,11 @@ async function callOpenAI(
   }
 
   const data = await response.json();
-  return JSON.parse(data.choices[0].message.content);
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) {
+    throw new Error("OpenAI returned an empty response");
+  }
+  return extractJSON(content);
 }
 
 async function callAnthropic(
@@ -186,6 +200,9 @@ async function callAnthropic(
   }
 
   const data = await response.json();
-  const textBlock = data.content.find((b: { type: string }) => b.type === "text");
-  return JSON.parse(textBlock.text);
+  const textBlock = data.content?.find((b: { type: string }) => b.type === "text");
+  if (!textBlock?.text) {
+    throw new Error("Anthropic returned an empty response");
+  }
+  return extractJSON(textBlock.text);
 }
