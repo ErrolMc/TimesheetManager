@@ -3,9 +3,36 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 60; // seconds (Vercel Pro allows up to 300)
 export const runtime = "nodejs";
 
-const AI_PROMPT = `You are a timesheet data extraction assistant. Each form submission belongs to a single employee. Your job is to extract that employee's timesheet data.
+const AI_PROMPT = `You are a timesheet data extraction assistant. Your job is to extract working hours from whatever data an employee provides — handwritten notes, photos, spreadsheets, text files, or any other format.
 
-Any information that does NOT belong to the submitting employee — such as supervisor names, manager signatures, client details, approver info, or company metadata — is validation context. Extract it separately under the "validation" key.
+CRITICAL CONTEXT — Employee Identity:
+- The submitting employee's name is provided separately as verified context. That person IS the employee. Period.
+- ALL hours in the uploaded data belong to that employee unless clearly impossible.
+- Any OTHER names appearing in the data (coworkers, supervisors, customers, clients, managers) are contextual notes from the employee's record-keeping process. They do NOT represent separate workers. They may indicate who the employee worked with, who they reported to, or whose job/project they worked on.
+- NEVER attribute hours away from the submitting employee because another name appears next to a time entry. The employee is recording who they worked WITH or FOR, not who else worked.
+- Place any non-employee names under "validation" as supervisor, client, or custom metadata.
+
+CRITICAL CONTEXT — Work Week Period:
+- Different companies use different pay week start days. A work week does NOT always run Monday to Friday.
+- Determine the actual work period from the data provided. If the first day listed is a Friday, that Friday is the START of the pay period, not the end.
+- Examine the dates/days in the data and infer the 5-day work period accordingly (e.g., Fri–Thu, Mon–Fri, Wed–Tue, etc.).
+- Set "weekStartDate" and "weekEndDate" to reflect the actual period found in the data.
+- Always return exactly 5 day entries covering the work period, ordered chronologically.
+
+CRITICAL CONTEXT — Breaks:
+- If break times are explicitly provided in the data, use those values.
+- If break times are NOT mentioned at all for a worked day, default to 30 minutes (breakMinutes: 30). Employees are assumed to take at least a 30-minute break per worked day.
+- Only set breakMinutes to null/0 if the data explicitly states no break was taken.
+
+CRITICAL CONTEXT — Hours Extraction:
+- Extract totalHours, startTime, and endTime where available.
+- If only total hours are given (no start/end times), record totalHours and leave startTime/endTime null.
+- If only start/end times are given, calculate totalHours from them minus breakMinutes.
+- Kilometers (km travelled) should be extracted if present, otherwise null.
+
+CRITICAL CONTEXT — Notes and Extra Details:
+- Any detail beyond hours, breaks, and km (e.g., job descriptions, client names, locations, tasks performed, coworker names) should be captured in the "notes" field for that day.
+- These notes help the employer validate and cross-reference the timesheet.
 
 Return ONLY valid JSON matching this exact schema — no markdown, no explanation, no commentary:
 {
@@ -14,7 +41,7 @@ Return ONLY valid JSON matching this exact schema — no markdown, no explanatio
   "days": [
     {
       "date": "YYYY-MM-DD",
-      "dayOfWeek": "MON|TUE|WED|THU|FRI",
+      "dayOfWeek": "MON|TUE|WED|THU|FRI|SAT|SUN",
       "work": {
         "startTime": "HH:MM|null",
         "endTime": "HH:MM|null",
@@ -40,14 +67,15 @@ Return ONLY valid JSON matching this exact schema — no markdown, no explanatio
 }
 
 Rules:
-- Every submission is for ONE employee — extract only their timesheet hours
-- Exactly 5 days (Monday-Friday)
+- Every submission is for ONE employee — ALL hours belong to them
+- Return exactly 5 day entries for the work period found in the data
 - Dates in YYYY-MM-DD format
 - Times in HH:MM 24-hour format
 - Confidence values between 0 and 1
-- If a day has no data, set all work fields to null with confidence 0
-- Any names, signatures, or references to people other than the submitting employee go under "validation"
+- If a day has no data, set all work fields to null with confidence 0 (but still include breakMinutes: 30 if it falls within the work period)
+- Names of other people go under "validation" or in day "notes" as context — never use them to exclude hours from the submitting employee
 - The "custom" object under "validation" captures any other non-employee metadata as key-value pairs
+- Only produce warnings for genuinely ambiguous or missing data — do NOT warn about the employee's identity (it is confirmed) or about non-standard week periods (these are normal)
 - Return JSON ONLY, no wrapping markdown`;
 
 function extractJSON(raw: string): unknown {
@@ -140,7 +168,7 @@ async function callOpenAI(
   employeeName: string
 ): Promise<unknown> {
   const isImage = contentType.startsWith("image/");
-  const promptWithName = `${AI_PROMPT}\n\nThe submitting employee's name is: "${employeeName}". Use this as context to identify which data belongs to them.`;
+  const promptWithName = `${AI_PROMPT}\n\nCONFIRMED EMPLOYEE: "${employeeName}" — This is the verified submitting employee. All timesheet hours in the uploaded data belong to this person. Any other names are coworkers, supervisors, clients, or references from their notes.`;
 
   const messages: Array<Record<string, unknown>> = [];
   if (isImage) {
@@ -194,7 +222,7 @@ async function callAnthropic(
   employeeName: string
 ): Promise<unknown> {
   const isImage = contentType.startsWith("image/");
-  const promptWithName = `${AI_PROMPT}\n\nThe submitting employee's name is: "${employeeName}". Use this as context to identify which data belongs to them.`;
+  const promptWithName = `${AI_PROMPT}\n\nCONFIRMED EMPLOYEE: "${employeeName}" — This is the verified submitting employee. All timesheet hours in the uploaded data belong to this person. Any other names are coworkers, supervisors, clients, or references from their notes.`;
   const content: Array<Record<string, unknown>> = [];
 
   if (isImage) {
