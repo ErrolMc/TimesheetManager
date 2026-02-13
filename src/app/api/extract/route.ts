@@ -3,7 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 export const maxDuration = 60; // seconds (Vercel Pro allows up to 300)
 export const runtime = "nodejs";
 
-const AI_PROMPT = `You are a timesheet data extraction assistant. Extract structured timesheet data from the provided content.
+const AI_PROMPT = `You are a timesheet data extraction assistant. Each form submission belongs to a single employee. Your job is to extract that employee's timesheet data.
+
+Any information that does NOT belong to the submitting employee — such as supervisor names, manager signatures, client details, approver info, or company metadata — is validation context. Extract it separately under the "validation" key.
 
 Return ONLY valid JSON matching this exact schema — no markdown, no explanation, no commentary:
 {
@@ -27,16 +29,25 @@ Return ONLY valid JSON matching this exact schema — no markdown, no explanatio
       }
     }
   ],
+  "validation": {
+    "supervisor": { "name": "string|null", "signature": "string|null" },
+    "approver": { "name": "string|null", "date": "YYYY-MM-DD|null" },
+    "client": { "name": "string|null", "project": "string|null" },
+    "custom": {}
+  },
   "warnings": [],
   "source": { "fileType": "string", "pageOrImageCount": number }
 }
 
 Rules:
+- Every submission is for ONE employee — extract only their timesheet hours
 - Exactly 5 days (Monday-Friday)
 - Dates in YYYY-MM-DD format
 - Times in HH:MM 24-hour format
 - Confidence values between 0 and 1
 - If a day has no data, set all work fields to null with confidence 0
+- Any names, signatures, or references to people other than the submitting employee go under "validation"
+- The "custom" object under "validation" captures any other non-employee metadata as key-value pairs
 - Return JSON ONLY, no wrapping markdown`;
 
 function extractJSON(raw: string): unknown {

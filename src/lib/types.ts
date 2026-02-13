@@ -35,6 +35,13 @@ export interface AIExtractionDay {
   };
 }
 
+export interface AIValidationData {
+  supervisor: { name: string | null; signature: string | null };
+  approver: { name: string | null; date: string | null };
+  client: { name: string | null; project: string | null };
+  custom: Record<string, unknown>;
+}
+
 export interface AIExtractionResult {
   employee: {
     fullName: string;
@@ -46,6 +53,7 @@ export interface AIExtractionResult {
     weekEndDate: string;
   };
   days: AIExtractionDay[];
+  validation: AIValidationData;
   warnings: string[];
   source: {
     fileType: string;
