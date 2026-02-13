@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60; // seconds (Vercel Pro allows up to 300)
+export const runtime = "nodejs";
+
 const AI_PROMPT = `You are a timesheet data extraction assistant. Extract structured timesheet data from the provided content.
 
 Return ONLY valid JSON matching this exact schema — no markdown, no explanation, no commentary:
@@ -172,7 +175,7 @@ async function callAnthropic(
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
+      model: "claude-opus-4-6",
       max_tokens: 4096,
       messages: [{ role: "user", content }],
     }),
